@@ -54,15 +54,25 @@ useEffect(() => {
 }, [])
 ```
 
-fiber 관리 + EffectResult 매핑 + cleanup을 매번 반복하지 않아도 되는 것. **편의성 추상화이지, 새로운 능력을 부여하는 건 아니다.**
+fiber 관리 + EffectResult 매핑 + cleanup을 매번 반복하지 않아도 되는 것.
 
-Promise 기반으로도 동일한 추상화가 가능하다:
+---
 
-```tsx
-// 가상의 Promise 버전 — Effect 없이도 동일한 추상화 가능
-const result = useAsync(() => fetchUsers(), [])
-// result: Loading | Success | Failure — 형태 동일
-```
+## "보일러플레이트 제거"는 충분히 가치 있다
+
+"새로운 능력을 부여하는 건 아니다"라고 하면 가치가 낮아 보이지만, React 생태계에서 가장 성공한 라이브러리들이 전부 동일한 성격이다:
+
+- `useState` → `this.state` + `this.setState` 보일러플레이트 제거
+- `useEffect` → `componentDidMount` + `componentWillUnmount` 보일러플레이트 제거
+- TanStack Query → `useEffect` + `useState` + loading/error 보일러플레이트 제거
+
+전부 "새로운 능력"이 아니라 **반복되는 패턴의 추상화**인데, 실제로는:
+
+1. **버그를 구조적으로 제거한다** — cleanup 누락, race condition, 불일치 상태를 실수할 여지 자체를 없앤다. fiber 생성 → Exit 매핑 → interrupt cleanup을 매번 직접 쓰면 반드시 실수가 생긴다.
+2. **코드를 예측 가능하게 만든다** — 팀 전체가 동일한 패턴으로 Effect를 실행하게 강제한다.
+3. **인지 부하를 줄인다** — fiber 관리, Exit 매핑, interrupt 전파를 매번 생각하지 않아도 된다.
+
+**라이브러리의 가치 기준은 "새로운 능력을 부여하는가"가 아니라 "이 추상화 없이 같은 수준의 정확성을 유지할 수 있는가"다.** fiber 생명주기 관리를 매 컴포넌트에서 직접 하면서 정확성을 유지하기는 현실적으로 어렵다. 그걸 훅 안에 가두는 건 편의성이 아니라 **정확성 보장**이다.
 
 ---
 
@@ -75,10 +85,10 @@ effect-react의 훅 체계는 **Effect 런타임을 React 생명주기에 올바
 - `useEffectCallback`: 동일 + 수동 트리거
 - `useService`: Tag → Effect 실행 → 서비스 인스턴스 반환
 
-새로운 능력을 만들어내는 게 아니라, Effect가 이미 가진 합성/취소/타입 안전성을 React 컴포넌트에서 보일러플레이트 없이 쓸 수 있게 하는 것.
+Effect가 이미 가진 합성/취소/타입 안전성을 React 컴포넌트에서 **정확하고 일관되게** 쓸 수 있게 하는 것이 핵심이다.
 
 ---
 
 ## 최종 판정
 
-**effect-react 훅이 Effect를 받는 건 "Effect의 능력을 React에서 쓰기 편하게 해주는 접착제"다.** 새로운 능력을 만들어내는 게 아니라, Effect가 이미 가진 합성/취소/타입 안전성을 React 컴포넌트에서 보일러플레이트 없이 쓸 수 있게 하는 것이 전부이자 핵심이다.
+**effect-react 훅이 Effect를 받는 건 "Effect의 능력을 React에서 정확하게 쓸 수 있게 보장하는 접착제"다.** 합성/취소/타입 안전성은 Effect 자체의 능력이지만, 그 능력을 React 생명주기에 올바르게 연결하는 작업은 반복적이고 실수하기 쉽다. 이 훅 체계는 그 연결의 정확성을 보장하며, 이는 TanStack Query가 fetch + 상태 관리의 정확성을 보장하는 것과 동일한 수준의 실질적 가치다.
