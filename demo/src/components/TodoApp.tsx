@@ -1,17 +1,17 @@
 /**
  * TodoApp — demonstrates useEffectState (useState-like pattern)
  *
- * - useEffectState: initializes todo list from Effect, setter re-fetches after mutations
+ * - useEffectStateAsync: initializes todo list from Effect, setter re-fetches after mutations
  * - No refreshKey needed — setter runs the Effect and updates state automatically
  * - Old list stays visible while mutations run (no Loading flash)
  */
 import { useState } from "react"
-import { useEffectState } from "effect-react"
+import { useEffectStateAsync } from "effect-react"
 import { Effect } from "effect"
 import { TodoService, type Todo } from "../services"
 
 export function TodoApp() {
-  const [todosResult, setTodos] = useEffectState(
+  const [todosResult, setTodos] = useEffectStateAsync(
     Effect.flatMap(TodoService, (s) => s.getAll),
   )
 

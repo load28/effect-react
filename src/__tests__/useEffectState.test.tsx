@@ -7,15 +7,11 @@ import { useEffectState } from "../hooks/useEffectState.js"
 
 const TestLayer = Layer.empty
 
-describe("useEffectState", () => {
-  it("loads initial value from effect", async () => {
+describe("useEffectState (sync)", () => {
+  it("returns initial value immediately — no Loading state", () => {
     function Test() {
-      const [result] = useEffectState(Effect.succeed("initial"))
-      return (
-        <div data-testid="result">
-          {result._tag === "Success" ? result.value : result._tag}
-        </div>
-      )
+      const [value] = useEffectState(Effect.succeed("hello"))
+      return <div data-testid="result">{value}</div>
     }
 
     render(
@@ -24,27 +20,17 @@ describe("useEffectState", () => {
       </EffectProvider>,
     )
 
-    expect(screen.getByTestId("result").textContent).toBe("Loading")
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50))
-    })
-
-    expect(screen.getByTestId("result").textContent).toBe("initial")
+    // Value is available on the first render — no Loading
+    expect(screen.getByTestId("result").textContent).toBe("hello")
   })
 
-  it("updates state with a plain value", async () => {
+  it("updates state with a plain value", () => {
     function Test() {
-      const [result, setState] = useEffectState(Effect.succeed("hello"))
+      const [value, setState] = useEffectState(Effect.succeed("hello"))
       return (
         <div>
-          <div data-testid="result">
-            {result._tag === "Success" ? result.value : result._tag}
-          </div>
-          <button
-            data-testid="btn"
-            onClick={() => setState("world")}
-          >
+          <div data-testid="result">{value}</div>
+          <button data-testid="btn" onClick={() => setState("world")}>
             Update
           </button>
         </div>
@@ -56,10 +42,6 @@ describe("useEffectState", () => {
         <Test />
       </EffectProvider>,
     )
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50))
-    })
 
     expect(screen.getByTestId("result").textContent).toBe("hello")
 
@@ -68,19 +50,17 @@ describe("useEffectState", () => {
     expect(screen.getByTestId("result").textContent).toBe("world")
   })
 
-  it("updates state with an effect", async () => {
+  it("updates state with a sync Effect", () => {
     function Test() {
-      const [result, setState] = useEffectState(Effect.succeed("hello"))
+      const [value, setState] = useEffectState(Effect.succeed(0))
       return (
         <div>
-          <div data-testid="result">
-            {result._tag === "Success" ? result.value : result._tag}
-          </div>
+          <div data-testid="result">{value}</div>
           <button
             data-testid="btn"
-            onClick={() => setState(Effect.succeed("from-effect"))}
+            onClick={() => setState(Effect.succeed(value + 1))}
           >
-            Update
+            Increment
           </button>
         </div>
       )
@@ -92,89 +72,10 @@ describe("useEffectState", () => {
       </EffectProvider>,
     )
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50))
-    })
-
-    expect(screen.getByTestId("result").textContent).toBe("hello")
+    expect(screen.getByTestId("result").textContent).toBe("0")
 
     fireEvent.click(screen.getByTestId("btn"))
 
-    // Synchronous effects resolve immediately, so we may skip Loading.
-    // Wait for the state update to propagate.
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50))
-    })
-
-    expect(screen.getByTestId("result").textContent).toBe("from-effect")
-  })
-
-  it("keeps old value visible while setter Effect runs (no Loading flash)", async () => {
-    function Test() {
-      const [result, setState] = useEffectState(Effect.succeed("initial"))
-      return (
-        <div>
-          <div data-testid="result">
-            {result._tag === "Success" ? result.value : result._tag}
-          </div>
-          <button
-            data-testid="btn"
-            onClick={() =>
-              setState(Effect.delay(Effect.succeed("delayed-value"), "50 millis"))
-            }
-          >
-            Update
-          </button>
-        </div>
-      )
-    }
-
-    render(
-      <EffectProvider layer={TestLayer}>
-        <Test />
-      </EffectProvider>,
-    )
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50))
-    })
-
-    expect(screen.getByTestId("result").textContent).toBe("initial")
-
-    // Click to set a delayed Effect
-    fireEvent.click(screen.getByTestId("btn"))
-
-    // Old value should remain visible (no Loading flash)
-    expect(screen.getByTestId("result").textContent).toBe("initial")
-
-    // Wait for the effect to complete
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 100))
-    })
-
-    expect(screen.getByTestId("result").textContent).toBe("delayed-value")
-  })
-
-  it("handles initial effect failure", async () => {
-    function Test() {
-      const [result] = useEffectState(Effect.fail("init-error"))
-      return (
-        <div data-testid="result">
-          {result._tag === "Failure" ? String(result.error) : result._tag}
-        </div>
-      )
-    }
-
-    render(
-      <EffectProvider layer={TestLayer}>
-        <Test />
-      </EffectProvider>,
-    )
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50))
-    })
-
-    expect(screen.getByTestId("result").textContent).toBe("init-error")
+    expect(screen.getByTestId("result").textContent).toBe("1")
   })
 })

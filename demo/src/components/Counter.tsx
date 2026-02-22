@@ -1,16 +1,16 @@
 /**
- * Counter — demonstrates useEffectState (useState-like pattern)
+ * Counter — demonstrates useEffectStateAsync (useState-like pattern)
  *
- * - useEffectState: initializes from Effect, setter accepts plain values or Effects
+ * - useEffectStateAsync: initializes from Effect, setter accepts plain values or Effects
  * - No refreshKey needed — setter runs the Effect and updates state automatically
  * - Old value stays visible while Effect runs (no Loading flash)
  */
-import { useEffectState } from "effect-react"
+import { useEffectStateAsync } from "effect-react"
 import { Effect } from "effect"
 import { CounterService } from "../services"
 
 export function Counter() {
-  const [countResult, setCount] = useEffectState(
+  const [countResult, setCount] = useEffectStateAsync(
     Effect.flatMap(CounterService, (s) => s.get),
   )
 

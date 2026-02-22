@@ -3,6 +3,7 @@ import { AppLayer } from "./services"
 import { TodoApp } from "./components/TodoApp"
 import { Counter } from "./components/Counter"
 import { AsyncDemo } from "./components/AsyncDemo"
+import { SyncCounter } from "./components/SyncCounter"
 
 export function App() {
   return (
@@ -25,7 +26,12 @@ export function App() {
         </section>
 
         <section style={{ marginBottom: 32 }}>
-          <h2>3. useEffectState — Async Demo</h2>
+          <h2>3. useEffectState — Sync Counter</h2>
+          <SyncCounter />
+        </section>
+
+        <section style={{ marginBottom: 32 }}>
+          <h2>4. useEffectStateAsync — Async Demo</h2>
           <AsyncDemo />
         </section>
       </div>

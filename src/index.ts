@@ -90,6 +90,7 @@ export {
   useRunEffect,
   type UseRunEffectOptions,
   useEffectState,
+  useEffectStateAsync,
   useService,
   useEffectCallback,
   type UseEffectCallbackReturn,
