@@ -6,10 +6,15 @@ import { type EffectResult, Loading, Success, Failure } from "../types.js"
 import { createComponentStore } from "../reactive.js"
 
 /**
- * Manages state derived from an Effect, with an updater function.
+ * Effect-powered state hook — works like React's useState.
  *
- * Runs the initial Effect to set the state, then provides a setter
+ * Runs the initial Effect to populate the state, then provides a setter
  * that can accept either a plain value or an Effect that produces the new value.
+ *
+ * When the setter receives an Effect, the current value stays visible
+ * while the effect runs (no Loading flash) — just like useState where
+ * the old value remains until the new one is ready.
+ * Loading state only appears during the initial effect execution.
  *
  * Internally uses a component-scoped reactive store (SubscriptionRef principles)
  * with useSyncExternalStore for tear-free, consistent reads.
@@ -18,14 +23,18 @@ import { createComponentStore } from "../reactive.js"
  * ```tsx
  * import { useEffectState } from 'effect-react'
  *
- * function ThemeSwitcher() {
- *   const [theme, setTheme] = useEffectState(loadThemeEffect)
+ * function Counter() {
+ *   const [count, setCount] = useEffectState(
+ *     Effect.flatMap(CounterService, (s) => s.get)
+ *   )
  *
- *   if (theme._tag !== 'Success') return <Spinner />
+ *   if (count._tag !== 'Success') return <Spinner />
  *
  *   return (
- *     <button onClick={() => setTheme(saveThemeEffect('dark'))}>
- *       Current: {theme.value}
+ *     <button onClick={() => setCount(
+ *       Effect.flatMap(CounterService, (s) => s.increment)
+ *     )}>
+ *       Count: {count.value}
  *     </button>
  *   )
  * }
@@ -70,12 +79,23 @@ export function useEffectState<A, E, R>(
     }
   }, [runtime, store])
 
+  const fiberRef = React.useRef<import("effect").Fiber.RuntimeFiber<A, E> | null>(null)
+
   const setState = React.useCallback(
     (next: A | Effect.Effect<A, E, R>) => {
+      // Interrupt previous setter-effect if still running
+      if (fiberRef.current) {
+        fiberRef.current.unsafeInterruptAsFork(fiberRef.current.id())
+        fiberRef.current = null
+      }
+
       if (isEffect(next)) {
-        store.set(Loading as EffectResult<A, E>)
+        // Keep current value visible while effect runs — like useState.
+        // No Loading flash. The old value stays until the new one arrives.
         const fiber = runtime.runFork(next)
+        fiberRef.current = fiber
         fiber.addObserver((exit) => {
+          fiberRef.current = null
           if (Exit.isSuccess(exit)) {
             store.set(Success(exit.value) as EffectResult<A, E>)
           } else {
@@ -87,11 +107,22 @@ export function useEffectState<A, E, R>(
           }
         })
       } else {
+        // Plain value — instant update, exactly like useState
         store.set(Success(next) as EffectResult<A, E>)
       }
     },
     [runtime, store],
   )
+
+  // Cleanup setter fiber on unmount
+  React.useEffect(() => {
+    return () => {
+      if (fiberRef.current) {
+        fiberRef.current.unsafeInterruptAsFork(fiberRef.current.id())
+        fiberRef.current = null
+      }
+    }
+  }, [])
 
   return [result, setState]
 }

@@ -1,39 +1,18 @@
 /**
- * TodoApp — demonstrates useSubscriptionRef + useService + useEffectCallback
+ * TodoApp — demonstrates useEffectState (useState-like pattern)
  *
- * - useService: resolves TodoService from the provider layer
- * - useSubscriptionRef: subscribes to todosRef for automatic reactivity
- * - useEffectCallback: add / toggle / remove actions triggered by user
- *
- * No refreshKey needed — SubscriptionRef changes automatically
- * propagate to the component through useSubscriptionRef.
+ * - useEffectState: initializes todo list from Effect, setter re-fetches after mutations
+ * - No refreshKey needed — setter runs the Effect and updates state automatically
+ * - Old list stays visible while mutations run (no Loading flash)
  */
 import { useState } from "react"
-import { useService, useSubscriptionRef, useEffectCallback } from "effect-react"
+import { useEffectState } from "effect-react"
 import { Effect } from "effect"
 import { TodoService, type Todo } from "../services"
 
 export function TodoApp() {
-  const svc = useService(TodoService)
-
-  // Reactive subscription to todos — auto-updates on any mutation
-  const todosResult = useSubscriptionRef(
-    svc._tag === "Success" ? svc.value.todosRef : undefined,
-  )
-
-  const { run: addTodo, isLoading: adding } = useEffectCallback(
-    (title: string) =>
-      Effect.flatMap(TodoService, (s) => s.add(title)),
-  )
-
-  const { run: toggleTodo } = useEffectCallback(
-    (id: number) =>
-      Effect.flatMap(TodoService, (s) => s.toggle(id)),
-  )
-
-  const { run: removeTodo } = useEffectCallback(
-    (id: number) =>
-      Effect.flatMap(TodoService, (s) => s.remove(id)),
+  const [todosResult, setTodos] = useEffectState(
+    Effect.flatMap(TodoService, (s) => s.getAll),
   )
 
   const [input, setInput] = useState("")
@@ -41,8 +20,28 @@ export function TodoApp() {
   const handleAdd = () => {
     const title = input.trim()
     if (!title) return
-    addTodo(title)
     setInput("")
+    setTodos(
+      Effect.flatMap(TodoService, (s) =>
+        Effect.flatMap(s.add(title), () => s.getAll),
+      ),
+    )
+  }
+
+  const handleToggle = (id: number) => {
+    setTodos(
+      Effect.flatMap(TodoService, (s) =>
+        Effect.flatMap(s.toggle(id), () => s.getAll),
+      ),
+    )
+  }
+
+  const handleRemove = (id: number) => {
+    setTodos(
+      Effect.flatMap(TodoService, (s) =>
+        Effect.flatMap(s.remove(id), () => s.getAll),
+      ),
+    )
   }
 
   return (
@@ -57,7 +56,7 @@ export function TodoApp() {
           placeholder="Add a todo..."
           style={{ flex: 1, padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
         />
-        <button onClick={handleAdd} disabled={adding} style={addBtnStyle}>
+        <button onClick={handleAdd} style={addBtnStyle}>
           Add
         </button>
       </div>
@@ -83,7 +82,7 @@ export function TodoApp() {
               <input
                 type="checkbox"
                 checked={todo.completed}
-                onChange={() => toggleTodo(todo.id)}
+                onChange={() => handleToggle(todo.id)}
               />
               <span
                 style={{
@@ -95,7 +94,7 @@ export function TodoApp() {
                 {todo.title}
               </span>
               <button
-                onClick={() => removeTodo(todo.id)}
+                onClick={() => handleRemove(todo.id)}
                 style={{ cursor: "pointer", color: "red", background: "none", border: "none" }}
               >
                 x

@@ -109,6 +109,52 @@ describe("useEffectState", () => {
     expect(screen.getByTestId("result").textContent).toBe("from-effect")
   })
 
+  it("keeps old value visible while setter Effect runs (no Loading flash)", async () => {
+    function Test() {
+      const [result, setState] = useEffectState(Effect.succeed("initial"))
+      return (
+        <div>
+          <div data-testid="result">
+            {result._tag === "Success" ? result.value : result._tag}
+          </div>
+          <button
+            data-testid="btn"
+            onClick={() =>
+              setState(Effect.delay(Effect.succeed("delayed-value"), "50 millis"))
+            }
+          >
+            Update
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <EffectProvider layer={TestLayer}>
+        <Test />
+      </EffectProvider>,
+    )
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    expect(screen.getByTestId("result").textContent).toBe("initial")
+
+    // Click to set a delayed Effect
+    fireEvent.click(screen.getByTestId("btn"))
+
+    // Old value should remain visible (no Loading flash)
+    expect(screen.getByTestId("result").textContent).toBe("initial")
+
+    // Wait for the effect to complete
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100))
+    })
+
+    expect(screen.getByTestId("result").textContent).toBe("delayed-value")
+  })
+
   it("handles initial effect failure", async () => {
     function Test() {
       const [result] = useEffectState(Effect.fail("init-error"))
