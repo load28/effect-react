@@ -16,7 +16,7 @@ export class TodoService extends Context.Tag("TodoService")<
   {
     readonly getAll: Effect.Effect<readonly Todo[]>
     readonly add: (title: string) => Effect.Effect<Todo>
-    readonly toggle: (id: number) => Effect.Effect<Todo, Error>
+    readonly toggle: (id: number) => Effect.Effect<void>
     readonly remove: (id: number) => Effect.Effect<void>
   }
 >() {}
@@ -41,15 +41,12 @@ const makeTodoService = Effect.sync(() => {
       }),
 
     toggle: (id: number) =>
-      Effect.flatMap(
-        Effect.sync(() => todos.find((t) => t.id === id)),
-        (found) => {
-          if (!found) return Effect.fail(new Error(`Todo ${id} not found`))
-          const updated = { ...found, completed: !found.completed }
-          todos = todos.map((t) => (t.id === id ? updated : t))
-          return Effect.succeed(updated)
-        },
-      ),
+      Effect.sync(() => {
+        const found = todos.find((t) => t.id === id)
+        if (!found) return
+        const updated = { ...found, completed: !found.completed }
+        todos = todos.map((t) => (t.id === id ? updated : t))
+      }),
 
     remove: (id: number) =>
       Effect.sync(() => {
