@@ -6,6 +6,6 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
-  external: ["react", "react-dom", "effect"],
+  external: ["react", "react-dom", "effect", "@effect-atom/atom", /^@effect-atom\/atom\//],
   treeshake: true,
 })

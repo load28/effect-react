@@ -1,6 +1,7 @@
 import * as React from "react"
 import { ManagedRuntime, type Layer } from "effect"
-import { EffectRuntimeContext } from "../context.js"
+import * as Registry from "@effect-atom/atom/Registry"
+import { EffectRuntimeContext, AtomRegistryContext } from "../context.js"
 
 export interface EffectProviderProps<R, E> {
   readonly layer: Layer.Layer<R, E, never>
@@ -8,12 +9,12 @@ export interface EffectProviderProps<R, E> {
 }
 
 /**
- * Provides an Effect runtime to the component tree.
+ * Provides an Effect runtime and an atom Registry to the component tree.
  *
- * Creates a ManagedRuntime from the given Layer and makes it available
- * to all descendant hooks (useRunEffect, useService, etc.).
+ * Creates a ManagedRuntime from the given Layer and an effect-atom Registry,
+ * making them available to all descendant hooks.
  *
- * The runtime is automatically disposed when the provider unmounts.
+ * The runtime and registry are automatically disposed when the provider unmounts.
  *
  * @example
  * ```tsx
@@ -40,14 +41,20 @@ export function EffectProvider<R, E>({
     [layer],
   )
 
+  const registry = React.useMemo(
+    () => Registry.make(),
+    [],
+  )
+
   React.useEffect(() => {
     return () => {
+      registry.dispose()
       runtime.dispose().catch(() => {
         // Disposal errors are silently ignored during unmount.
         // This matches React's pattern of best-effort cleanup.
       })
     }
-  }, [runtime])
+  }, [runtime, registry])
 
   // If there's a parent runtime, the new one takes precedence (layer scoping).
   void parentRuntime
@@ -55,6 +62,10 @@ export function EffectProvider<R, E>({
   return React.createElement(
     EffectRuntimeContext.Provider,
     { value: runtime as ManagedRuntime.ManagedRuntime<any, any> },
-    children,
+    React.createElement(
+      AtomRegistryContext.Provider,
+      { value: registry },
+      children,
+    ),
   )
 }

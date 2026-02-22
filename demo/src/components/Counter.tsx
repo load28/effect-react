@@ -1,56 +1,31 @@
 /**
- * Counter — demonstrates useService + useEffectCallback
+ * Counter — demonstrates atom-based reactive state
  *
- * - useService: resolves CounterService from the provider layer
- * - useEffectCallback: wraps service methods as on-demand callbacks
+ * Uses useAtomValue to subscribe to counter value.
+ * Uses useAtomSet to trigger mutations (increment/decrement).
+ * After mutation completes, counterAtom auto-refreshes — no refreshKey needed.
  */
-import { useState } from "react"
-import { useService, useRunEffect, useEffectCallback } from "effect-react"
-import { Effect } from "effect"
-import { CounterService } from "../services"
+import { useAtomValue, useAtomSet } from "effect-react"
+import { Result } from "@effect-atom/atom"
+import { counterAtom, incrementFn, decrementFn } from "../atoms"
 
 export function Counter() {
-  const svc = useService(CounterService)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const countResult = useAtomValue(counterAtom)
+  const increment = useAtomSet(incrementFn)
+  const decrement = useAtomSet(decrementFn)
 
-  // Read current count value, re-fetch when refreshKey changes
-  const countResult = useRunEffect(
-    Effect.flatMap(CounterService, (s) => s.get),
-    { deps: [refreshKey] },
-  )
-
-  const { run: doIncrement, isLoading: incLoading } = useEffectCallback(() =>
-    Effect.flatMap(CounterService, (s) => s.increment),
-  )
-
-  const { run: doDecrement, isLoading: decLoading } = useEffectCallback(() =>
-    Effect.flatMap(CounterService, (s) => s.decrement),
-  )
-
-  if (svc._tag === "Loading") return <p>Loading counter service...</p>
-  if (svc._tag === "Failure") return <p style={{ color: "red" }}>Failed to load counter service</p>
-
-  const displayCount = countResult._tag === "Success" ? countResult.value : 0
-
-  const handleIncrement = () => {
-    doIncrement()
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
-  }
-
-  const handleDecrement = () => {
-    doDecrement()
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
-  }
+  const isWaiting = Result.isWaiting(countResult)
+  const displayCount = Result.isSuccess(countResult) ? countResult.value : 0
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <button onClick={handleDecrement} disabled={decLoading} style={btnStyle}>
+      <button onClick={() => decrement()} disabled={isWaiting} style={btnStyle}>
         −
       </button>
       <span style={{ fontSize: 24, minWidth: 48, textAlign: "center" }}>
         {displayCount}
       </span>
-      <button onClick={handleIncrement} disabled={incLoading} style={btnStyle}>
+      <button onClick={() => increment()} disabled={isWaiting} style={btnStyle}>
         +
       </button>
     </div>
