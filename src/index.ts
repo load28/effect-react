@@ -94,4 +94,13 @@ export {
   useEffectCallback,
   type UseEffectCallbackReturn,
   useEffectRuntime,
+  // Atom-based hooks
+  useRegistry,
+  useAtomValue,
+  useAtomSet,
+  useAtom,
+  useAtomRefresh,
 } from "./hooks/index.js"
+
+// Re-export effect-atom core modules
+export { Atom, Result as AtomResult, Registry } from "@effect-atom/atom"

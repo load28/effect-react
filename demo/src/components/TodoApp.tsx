@@ -1,37 +1,21 @@
 /**
- * TodoApp — demonstrates useRunEffect + useService + useEffectCallback
+ * TodoApp — demonstrates atom-based reactive state with Effect services
  *
- * - useRunEffect: auto-fetches todo list on mount
- * - useEffectCallback: add / toggle / remove actions triggered by user
+ * Uses useAtomValue to subscribe to the todo list.
+ * Uses useAtomSet to trigger mutations (add/toggle/remove).
+ * After each mutation, todosAtom auto-refreshes — no refreshKey or setTimeout needed.
  */
 import { useState } from "react"
-import { useRunEffect, useEffectCallback } from "effect-react"
-import { Effect } from "effect"
-import { TodoService, type Todo } from "../services"
+import { useAtomValue, useAtomSet } from "effect-react"
+import { Result } from "@effect-atom/atom"
+import type { Todo } from "../services"
+import { todosAtom, addTodoFn, toggleTodoFn, removeTodoFn } from "../atoms"
 
 export function TodoApp() {
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  // Auto-fetch all todos (re-runs when refreshKey changes)
-  const todosResult = useRunEffect(
-    Effect.flatMap(TodoService, (s) => s.getAll),
-    { deps: [refreshKey] },
-  )
-
-  const { run: addTodo, isLoading: adding } = useEffectCallback(
-    (title: string) =>
-      Effect.flatMap(TodoService, (s) => s.add(title)),
-  )
-
-  const { run: toggleTodo } = useEffectCallback(
-    (id: number) =>
-      Effect.flatMap(TodoService, (s) => s.toggle(id)),
-  )
-
-  const { run: removeTodo } = useEffectCallback(
-    (id: number) =>
-      Effect.flatMap(TodoService, (s) => s.remove(id)),
-  )
+  const todosResult = useAtomValue(todosAtom)
+  const addTodo = useAtomSet(addTodoFn)
+  const toggleTodo = useAtomSet(toggleTodoFn)
+  const removeTodo = useAtomSet(removeTodoFn)
 
   const [input, setInput] = useState("")
 
@@ -40,18 +24,6 @@ export function TodoApp() {
     if (!title) return
     addTodo(title)
     setInput("")
-    // Refresh list after a short delay to let the effect complete
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
-  }
-
-  const handleToggle = (id: number) => {
-    toggleTodo(id)
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
-  }
-
-  const handleRemove = (id: number) => {
-    removeTodo(id)
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
   }
 
   return (
@@ -66,17 +38,17 @@ export function TodoApp() {
           placeholder="Add a todo..."
           style={{ flex: 1, padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
         />
-        <button onClick={handleAdd} disabled={adding} style={addBtnStyle}>
+        <button onClick={handleAdd} style={addBtnStyle}>
           Add
         </button>
       </div>
 
       {/* Todo list */}
-      {todosResult._tag === "Loading" && <p>Loading todos...</p>}
-      {todosResult._tag === "Failure" && (
+      {Result.isInitial(todosResult) && <p>Loading todos...</p>}
+      {Result.isFailure(todosResult) && (
         <p style={{ color: "red" }}>Error loading todos</p>
       )}
-      {todosResult._tag === "Success" && (
+      {Result.isSuccess(todosResult) && (
         <ul style={{ listStyle: "none", padding: 0 }}>
           {todosResult.value.map((todo: Todo) => (
             <li
@@ -92,7 +64,7 @@ export function TodoApp() {
               <input
                 type="checkbox"
                 checked={todo.completed}
-                onChange={() => handleToggle(todo.id)}
+                onChange={() => toggleTodo(todo.id)}
               />
               <span
                 style={{
@@ -104,7 +76,7 @@ export function TodoApp() {
                 {todo.title}
               </span>
               <button
-                onClick={() => handleRemove(todo.id)}
+                onClick={() => removeTodo(todo.id)}
                 style={{ cursor: "pointer", color: "red", background: "none", border: "none" }}
               >
                 x

@@ -10,17 +10,17 @@ export function App() {
       <div style={{ maxWidth: 720, margin: "0 auto", padding: 24, fontFamily: "system-ui, sans-serif" }}>
         <h1>effect-react Demo</h1>
         <p style={{ color: "#666" }}>
-          Demonstrating all hooks: useRunEffect, useEffectState, useService, useEffectCallback
+          Demonstrating hooks: useAtomValue, useAtomSet, useEffectState, and atom-based reactivity
         </p>
         <hr />
 
         <section style={{ marginBottom: 32 }}>
-          <h2>1. useService + useEffectCallback — Counter</h2>
+          <h2>1. Atom-based Counter</h2>
           <Counter />
         </section>
 
         <section style={{ marginBottom: 32 }}>
-          <h2>2. useRunEffect + useService — Todo List</h2>
+          <h2>2. Atom-based Todo List</h2>
           <TodoApp />
         </section>
 

@@ -1,5 +1,6 @@
 import * as React from "react"
 import type { ManagedRuntime } from "effect"
+import type { Registry } from "@effect-atom/atom/Registry"
 
 /**
  * React Context that holds the Effect ManagedRuntime.
@@ -10,3 +11,11 @@ export const EffectRuntimeContext = React.createContext<
 >(null)
 
 EffectRuntimeContext.displayName = "EffectRuntimeContext"
+
+/**
+ * React Context that holds the effect-atom Registry.
+ * Used by atom-based hooks for reactive state management.
+ */
+export const AtomRegistryContext = React.createContext<Registry | null>(null)
+
+AtomRegistryContext.displayName = "AtomRegistryContext"

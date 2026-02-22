@@ -25,14 +25,14 @@
     "clean": "rm -rf dist"
   },
   "peerDependencies": {
-    "effect": "^3.0.0",
+    "effect": "^3.19.0",
     "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.1.0",
     "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
     "@types/react": "^19.0.0",
-    "effect": "^3.12.0",
+    "effect": "^3.19.0",
     "jsdom": "^25.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -48,5 +48,8 @@
     "functional-programming",
     "dependency-injection"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@effect-atom/atom": "^0.5.2"
+  }
 }
