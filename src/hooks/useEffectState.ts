@@ -3,25 +3,38 @@ import type { Effect } from "effect"
 import { Exit, Cause } from "effect"
 import { useEffectRuntime } from "./useEffectRuntime.js"
 import { type EffectResult, Loading, Success, Failure } from "../types.js"
+import { createComponentStore } from "../reactive.js"
 
 /**
- * Manages state derived from an Effect, with an updater function.
+ * Effect-powered state hook — works like React's useState.
  *
- * Runs the initial Effect to set the state, then provides a setter
+ * Runs the initial Effect to populate the state, then provides a setter
  * that can accept either a plain value or an Effect that produces the new value.
+ *
+ * When the setter receives an Effect, the current value stays visible
+ * while the effect runs (no Loading flash) — just like useState where
+ * the old value remains until the new one is ready.
+ * Loading state only appears during the initial effect execution.
+ *
+ * Internally uses a component-scoped reactive store (SubscriptionRef principles)
+ * with useSyncExternalStore for tear-free, consistent reads.
  *
  * @example
  * ```tsx
  * import { useEffectState } from 'effect-react'
  *
- * function ThemeSwitcher() {
- *   const [theme, setTheme] = useEffectState(loadThemeEffect)
+ * function Counter() {
+ *   const [count, setCount] = useEffectState(
+ *     Effect.flatMap(CounterService, (s) => s.get)
+ *   )
  *
- *   if (theme._tag !== 'Success') return <Spinner />
+ *   if (count._tag !== 'Success') return <Spinner />
  *
  *   return (
- *     <button onClick={() => setTheme(saveThemeEffect('dark'))}>
- *       Current: {theme.value}
+ *     <button onClick={() => setCount(
+ *       Effect.flatMap(CounterService, (s) => s.increment)
+ *     )}>
+ *       Count: {count.value}
  *     </button>
  *   )
  * }
@@ -31,9 +44,18 @@ export function useEffectState<A, E, R>(
   initialEffect: Effect.Effect<A, E, R>,
 ): [EffectResult<A, E>, (next: A | Effect.Effect<A, E, R>) => void] {
   const runtime = useEffectRuntime<R, never>()
-  const [result, setResult] = React.useState<EffectResult<A, E>>(Loading as EffectResult<A, E>)
+
+  // Component-scoped reactive store (Ref + PubSub pattern from SubscriptionRef)
+  const storeRef = React.useRef<ReturnType<typeof createComponentStore<EffectResult<A, E>>> | null>(null)
+  if (!storeRef.current) {
+    storeRef.current = createComponentStore<EffectResult<A, E>>(Loading as EffectResult<A, E>)
+  }
+  const store = storeRef.current
+
+  // Subscribe to the reactive store
+  const result = React.useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+
   // Capture the initial effect in a ref to avoid re-running on every render
-  // when the effect is created inline (e.g., useEffectState(Effect.succeed(x)))
   const initialEffectRef = React.useRef(initialEffect)
 
   // Run the initial effect once on mount
@@ -42,12 +64,12 @@ export function useEffectState<A, E, R>(
 
     fiber.addObserver((exit) => {
       if (Exit.isSuccess(exit)) {
-        setResult(Success(exit.value) as EffectResult<A, E>)
+        store.set(Success(exit.value) as EffectResult<A, E>)
       } else {
         if (Cause.isInterruptedOnly(exit.cause)) return
         const failure = Cause.failureOption(exit.cause)
         if (failure._tag === "Some") {
-          setResult(Failure(failure.value) as EffectResult<A, E>)
+          store.set(Failure(failure.value) as EffectResult<A, E>)
         }
       }
     })
@@ -55,31 +77,52 @@ export function useEffectState<A, E, R>(
     return () => {
       fiber.unsafeInterruptAsFork(fiber.id())
     }
-  }, [runtime])
+  }, [runtime, store])
+
+  const fiberRef = React.useRef<import("effect").Fiber.RuntimeFiber<A, E> | null>(null)
 
   const setState = React.useCallback(
     (next: A | Effect.Effect<A, E, R>) => {
-      // Check if `next` is an Effect (has _op or Symbol.iterator — duck-typing)
+      // Interrupt previous setter-effect if still running
+      if (fiberRef.current) {
+        fiberRef.current.unsafeInterruptAsFork(fiberRef.current.id())
+        fiberRef.current = null
+      }
+
       if (isEffect(next)) {
-        setResult(Loading as EffectResult<A, E>)
+        // Keep current value visible while effect runs — like useState.
+        // No Loading flash. The old value stays until the new one arrives.
         const fiber = runtime.runFork(next)
+        fiberRef.current = fiber
         fiber.addObserver((exit) => {
+          fiberRef.current = null
           if (Exit.isSuccess(exit)) {
-            setResult(Success(exit.value) as EffectResult<A, E>)
+            store.set(Success(exit.value) as EffectResult<A, E>)
           } else {
             if (Cause.isInterruptedOnly(exit.cause)) return
             const failure = Cause.failureOption(exit.cause)
             if (failure._tag === "Some") {
-              setResult(Failure(failure.value) as EffectResult<A, E>)
+              store.set(Failure(failure.value) as EffectResult<A, E>)
             }
           }
         })
       } else {
-        setResult(Success(next) as EffectResult<A, E>)
+        // Plain value — instant update, exactly like useState
+        store.set(Success(next) as EffectResult<A, E>)
       }
     },
-    [runtime],
+    [runtime, store],
   )
+
+  // Cleanup setter fiber on unmount
+  React.useEffect(() => {
+    return () => {
+      if (fiberRef.current) {
+        fiberRef.current.unsafeInterruptAsFork(fiberRef.current.id())
+        fiberRef.current = null
+      }
+    }
+  }, [])
 
   return [result, setState]
 }

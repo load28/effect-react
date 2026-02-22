@@ -1,56 +1,39 @@
 /**
- * Counter — demonstrates useService + useEffectCallback
+ * Counter — demonstrates useEffectState (useState-like pattern)
  *
- * - useService: resolves CounterService from the provider layer
- * - useEffectCallback: wraps service methods as on-demand callbacks
+ * - useEffectState: initializes from Effect, setter accepts plain values or Effects
+ * - No refreshKey needed — setter runs the Effect and updates state automatically
+ * - Old value stays visible while Effect runs (no Loading flash)
  */
-import { useState } from "react"
-import { useService, useRunEffect, useEffectCallback } from "effect-react"
+import { useEffectState } from "effect-react"
 import { Effect } from "effect"
 import { CounterService } from "../services"
 
 export function Counter() {
-  const svc = useService(CounterService)
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  // Read current count value, re-fetch when refreshKey changes
-  const countResult = useRunEffect(
+  const [countResult, setCount] = useEffectState(
     Effect.flatMap(CounterService, (s) => s.get),
-    { deps: [refreshKey] },
   )
 
-  const { run: doIncrement, isLoading: incLoading } = useEffectCallback(() =>
-    Effect.flatMap(CounterService, (s) => s.increment),
-  )
-
-  const { run: doDecrement, isLoading: decLoading } = useEffectCallback(() =>
-    Effect.flatMap(CounterService, (s) => s.decrement),
-  )
-
-  if (svc._tag === "Loading") return <p>Loading counter service...</p>
-  if (svc._tag === "Failure") return <p style={{ color: "red" }}>Failed to load counter service</p>
-
-  const displayCount = countResult._tag === "Success" ? countResult.value : 0
+  if (countResult._tag === "Loading") return <p>Loading counter...</p>
+  if (countResult._tag === "Failure") return <p style={{ color: "red" }}>Failed to load counter</p>
 
   const handleIncrement = () => {
-    doIncrement()
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
+    setCount(Effect.flatMap(CounterService, (s) => s.increment))
   }
 
   const handleDecrement = () => {
-    doDecrement()
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
+    setCount(Effect.flatMap(CounterService, (s) => s.decrement))
   }
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <button onClick={handleDecrement} disabled={decLoading} style={btnStyle}>
+      <button onClick={handleDecrement} style={btnStyle}>
         −
       </button>
       <span style={{ fontSize: 24, minWidth: 48, textAlign: "center" }}>
-        {displayCount}
+        {countResult.value}
       </span>
-      <button onClick={handleIncrement} disabled={incLoading} style={btnStyle}>
+      <button onClick={handleIncrement} style={btnStyle}>
         +
       </button>
     </div>
