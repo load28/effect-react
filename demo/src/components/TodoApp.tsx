@@ -1,21 +1,24 @@
 /**
- * TodoApp — demonstrates useRunEffect + useService + useEffectCallback
+ * TodoApp — demonstrates useSubscriptionRef + useService + useEffectCallback
  *
- * - useRunEffect: auto-fetches todo list on mount
+ * - useService: resolves TodoService from the provider layer
+ * - useSubscriptionRef: subscribes to todosRef for automatic reactivity
  * - useEffectCallback: add / toggle / remove actions triggered by user
+ *
+ * No refreshKey needed — SubscriptionRef changes automatically
+ * propagate to the component through useSubscriptionRef.
  */
 import { useState } from "react"
-import { useRunEffect, useEffectCallback } from "effect-react"
+import { useService, useSubscriptionRef, useEffectCallback } from "effect-react"
 import { Effect } from "effect"
 import { TodoService, type Todo } from "../services"
 
 export function TodoApp() {
-  const [refreshKey, setRefreshKey] = useState(0)
+  const svc = useService(TodoService)
 
-  // Auto-fetch all todos (re-runs when refreshKey changes)
-  const todosResult = useRunEffect(
-    Effect.flatMap(TodoService, (s) => s.getAll),
-    { deps: [refreshKey] },
+  // Reactive subscription to todos — auto-updates on any mutation
+  const todosResult = useSubscriptionRef(
+    svc._tag === "Success" ? svc.value.todosRef : undefined,
   )
 
   const { run: addTodo, isLoading: adding } = useEffectCallback(
@@ -40,18 +43,6 @@ export function TodoApp() {
     if (!title) return
     addTodo(title)
     setInput("")
-    // Refresh list after a short delay to let the effect complete
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
-  }
-
-  const handleToggle = (id: number) => {
-    toggleTodo(id)
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
-  }
-
-  const handleRemove = (id: number) => {
-    removeTodo(id)
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
   }
 
   return (
@@ -92,7 +83,7 @@ export function TodoApp() {
               <input
                 type="checkbox"
                 checked={todo.completed}
-                onChange={() => handleToggle(todo.id)}
+                onChange={() => toggleTodo(todo.id)}
               />
               <span
                 style={{
@@ -104,7 +95,7 @@ export function TodoApp() {
                 {todo.title}
               </span>
               <button
-                onClick={() => handleRemove(todo.id)}
+                onClick={() => removeTodo(todo.id)}
                 style={{ cursor: "pointer", color: "red", background: "none", border: "none" }}
               >
                 x

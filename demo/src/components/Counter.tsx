@@ -1,22 +1,23 @@
 /**
- * Counter — demonstrates useService + useEffectCallback
+ * Counter — demonstrates useSubscriptionRef + useEffectCallback
  *
  * - useService: resolves CounterService from the provider layer
+ * - useSubscriptionRef: subscribes to countRef for automatic reactivity
  * - useEffectCallback: wraps service methods as on-demand callbacks
+ *
+ * No refreshKey needed — SubscriptionRef changes automatically
+ * propagate to the component through useSubscriptionRef.
  */
-import { useState } from "react"
-import { useService, useRunEffect, useEffectCallback } from "effect-react"
+import { useService, useSubscriptionRef, useEffectCallback } from "effect-react"
 import { Effect } from "effect"
 import { CounterService } from "../services"
 
 export function Counter() {
   const svc = useService(CounterService)
-  const [refreshKey, setRefreshKey] = useState(0)
 
-  // Read current count value, re-fetch when refreshKey changes
-  const countResult = useRunEffect(
-    Effect.flatMap(CounterService, (s) => s.get),
-    { deps: [refreshKey] },
+  // Reactive subscription to counter value — updates automatically on any mutation
+  const countResult = useSubscriptionRef(
+    svc._tag === "Success" ? svc.value.countRef : undefined,
   )
 
   const { run: doIncrement, isLoading: incLoading } = useEffectCallback(() =>
@@ -32,25 +33,15 @@ export function Counter() {
 
   const displayCount = countResult._tag === "Success" ? countResult.value : 0
 
-  const handleIncrement = () => {
-    doIncrement()
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
-  }
-
-  const handleDecrement = () => {
-    doDecrement()
-    setTimeout(() => setRefreshKey((k) => k + 1), 50)
-  }
-
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <button onClick={handleDecrement} disabled={decLoading} style={btnStyle}>
+      <button onClick={() => doDecrement()} disabled={decLoading} style={btnStyle}>
         −
       </button>
       <span style={{ fontSize: 24, minWidth: 48, textAlign: "center" }}>
         {displayCount}
       </span>
-      <button onClick={handleIncrement} disabled={incLoading} style={btnStyle}>
+      <button onClick={() => doIncrement()} disabled={incLoading} style={btnStyle}>
         +
       </button>
     </div>

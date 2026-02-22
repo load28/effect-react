@@ -3,6 +3,7 @@ import type { Effect } from "effect"
 import { Exit, Cause } from "effect"
 import { useEffectRuntime } from "./useEffectRuntime.js"
 import { type EffectResult, Loading, Success, Failure } from "../types.js"
+import { createComponentStore } from "../reactive.js"
 
 export interface UseRunEffectOptions {
   /**
@@ -20,6 +21,9 @@ export interface UseRunEffectOptions {
  * - Executed when the component mounts (or deps change)
  * - Interrupted when the component unmounts or deps change
  * - Re-executed on dependency changes
+ *
+ * Internally uses a component-scoped reactive store (SubscriptionRef principles)
+ * with useSyncExternalStore for tear-free, consistent reads.
  *
  * @example
  * ```tsx
@@ -39,27 +43,34 @@ export function useRunEffect<A, E, R>(
   options?: UseRunEffectOptions,
 ): EffectResult<A, E> {
   const runtime = useEffectRuntime<R, never>()
-  const [result, setResult] = React.useState<EffectResult<A, E>>(Loading as EffectResult<A, E>)
   const deps = options?.deps
 
+  // Component-scoped reactive store (Ref + PubSub pattern from SubscriptionRef)
+  const storeRef = React.useRef<ReturnType<typeof createComponentStore<EffectResult<A, E>>> | null>(null)
+  if (!storeRef.current) {
+    storeRef.current = createComponentStore<EffectResult<A, E>>(Loading as EffectResult<A, E>)
+  }
+  const store = storeRef.current
+
+  // Subscribe to the reactive store — re-renders when store.set() is called
+  const result = React.useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+
   React.useEffect(() => {
-    setResult(Loading as EffectResult<A, E>)
+    store.set(Loading as EffectResult<A, E>)
 
     const fiber = runtime.runFork(effect)
 
     fiber.addObserver((exit) => {
       if (Exit.isSuccess(exit)) {
-        setResult(Success(exit.value) as EffectResult<A, E>)
+        store.set(Success(exit.value) as EffectResult<A, E>)
       } else {
-        // Don't update state for interruption — component is unmounting
         const cause = exit.cause
         if (Cause.isInterruptedOnly(cause)) {
           return
         }
-        // Extract the first error from the cause
         const failure = Cause.failureOption(cause)
         if (failure._tag === "Some") {
-          setResult(Failure(failure.value) as EffectResult<A, E>)
+          store.set(Failure(failure.value) as EffectResult<A, E>)
         }
       }
     })

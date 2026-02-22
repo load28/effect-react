@@ -94,4 +94,6 @@ export {
   useEffectCallback,
   type UseEffectCallbackReturn,
   useEffectRuntime,
+  useSubscriptionRef,
+  useStream,
 } from "./hooks/index.js"

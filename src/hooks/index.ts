@@ -6,3 +6,5 @@ export {
   type UseEffectCallbackReturn,
 } from "./useEffectCallback.js"
 export { useEffectRuntime } from "./useEffectRuntime.js"
+export { useSubscriptionRef } from "./useSubscriptionRef.js"
+export { useStream } from "./useStream.js"

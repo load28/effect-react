@@ -1,7 +1,11 @@
 /**
  * Demo services — simulated API layer using Effect-TS
+ *
+ * Services expose SubscriptionRef for reactive state.
+ * When state changes, all subscribers (useSubscriptionRef hooks)
+ * are automatically notified — no refresh keys needed.
  */
-import { Context, Effect, Layer } from "effect"
+import { Context, Effect, Layer, SubscriptionRef } from "effect"
 
 // --- Todo Service ---
 
@@ -14,47 +18,51 @@ export interface Todo {
 export class TodoService extends Context.Tag("TodoService")<
   TodoService,
   {
-    readonly getAll: Effect.Effect<readonly Todo[]>
+    /** Reactive stream of all todos — auto-updates on any mutation */
+    readonly todosRef: SubscriptionRef.SubscriptionRef<readonly Todo[]>
     readonly add: (title: string) => Effect.Effect<Todo>
     readonly toggle: (id: number) => Effect.Effect<Todo, Error>
     readonly remove: (id: number) => Effect.Effect<void>
   }
 >() {}
 
-// In-memory implementation
-const makeTodoService = Effect.sync(() => {
-  let todos: Todo[] = [
+// In-memory implementation using SubscriptionRef for reactive state
+const makeTodoService = Effect.gen(function* () {
+  let nextId = 4
+  const initialTodos: readonly Todo[] = [
     { id: 1, title: "Learn Effect-TS", completed: true },
     { id: 2, title: "Build effect-react library", completed: true },
     { id: 3, title: "Create a demo app", completed: false },
   ]
-  let nextId = 4
+
+  const todosRef = yield* SubscriptionRef.make(initialTodos)
 
   return TodoService.of({
-    getAll: Effect.sync(() => [...todos]),
+    todosRef,
 
     add: (title: string) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
         const todo: Todo = { id: nextId++, title, completed: false }
-        todos = [...todos, todo]
+        yield* SubscriptionRef.update(todosRef, (todos) => [...todos, todo])
         return todo
       }),
 
     toggle: (id: number) =>
-      Effect.flatMap(
-        Effect.sync(() => todos.find((t) => t.id === id)),
-        (found) => {
-          if (!found) return Effect.fail(new Error(`Todo ${id} not found`))
-          const updated = { ...found, completed: !found.completed }
-          todos = todos.map((t) => (t.id === id ? updated : t))
-          return Effect.succeed(updated)
-        },
-      ),
+      Effect.gen(function* () {
+        const todos = yield* SubscriptionRef.get(todosRef)
+        const found = todos.find((t) => t.id === id)
+        if (!found) return yield* Effect.fail(new Error(`Todo ${id} not found`))
+        const updated = { ...found, completed: !found.completed }
+        yield* SubscriptionRef.update(todosRef, (ts) =>
+          ts.map((t) => (t.id === id ? updated : t)),
+        )
+        return updated
+      }),
 
     remove: (id: number) =>
-      Effect.sync(() => {
-        todos = todos.filter((t) => t.id !== id)
-      }),
+      SubscriptionRef.update(todosRef, (todos) =>
+        todos.filter((t) => t.id !== id),
+      ),
   })
 })
 
@@ -65,19 +73,22 @@ export const TodoServiceLive = Layer.effect(TodoService, makeTodoService)
 export class CounterService extends Context.Tag("CounterService")<
   CounterService,
   {
-    readonly get: Effect.Effect<number>
+    /** Reactive counter value — auto-updates on increment/decrement */
+    readonly countRef: SubscriptionRef.SubscriptionRef<number>
     readonly increment: Effect.Effect<number>
     readonly decrement: Effect.Effect<number>
   }
 >() {}
 
-const makeCounterService = Effect.sync(() => {
-  let count = 0
+const makeCounterService = Effect.gen(function* () {
+  const countRef = yield* SubscriptionRef.make(0)
 
   return CounterService.of({
-    get: Effect.sync(() => count),
-    increment: Effect.sync(() => ++count),
-    decrement: Effect.sync(() => --count),
+    countRef,
+
+    increment: SubscriptionRef.updateAndGet(countRef, (n) => n + 1),
+
+    decrement: SubscriptionRef.updateAndGet(countRef, (n) => n - 1),
   })
 })
 
