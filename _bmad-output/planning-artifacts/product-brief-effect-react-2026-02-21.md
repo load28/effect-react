@@ -119,3 +119,78 @@ function App() {
 4. **점진적 채택 경로**: 한 줄의 import 변경으로 시작할 수 있다. 기존 React 프로젝트에 위험 없이 도입 가능.
 
 5. **FP + TDD 최적화**: 비즈니스 로직을 순수 Effect로 분리하도록 설계되어, 컴포넌트 비대화를 방지하고 단위 테스트가 용이한 아키텍처를 자연스럽게 유도한다.
+
+---
+
+## Technical Strategy: Path D → C (Hybrid → Compiler)
+
+### 전략 개요
+
+TypeScript가 `.ts` 확장자와 명시적 타입 어노테이션으로 시작하여 점진적으로 추론을 강화했듯이, effect-react도 라이브러리로 시작하여 실용성을 검증한 후 컴파일러 트랜스폼으로 진화한다.
+
+### Phase 1: Library (Path D — 현재)
+
+**목표:** 런타임 라이브러리만으로 핵심 pain point를 즉시 해결
+
+```
+effect-react/
+├── src/
+│   ├── index.ts              # export * from 'react' + Effect hooks
+│   ├── context.ts            # React Context for Effect Runtime
+│   ├── providers/
+│   │   └── EffectProvider.tsx # Runtime/Layer provider
+│   └── hooks/
+│       ├── useRunEffect.ts   # Effect 실행 → Result<A, E>
+│       ├── useEffectState.ts # Effect 기반 상태 관리
+│       ├── useService.ts     # Layer에서 서비스 접근
+│       └── useEffectCallback.ts # Effect 기반 콜백
+```
+
+**제공 API:**
+- `export * from 'react'` — 완전한 React 호환
+- `EffectProvider` — Layer/Runtime을 컴포넌트 트리에 제공
+- `useRunEffect(effect)` — Effect를 실행하고 `Result<A, E>` 반환
+- `useEffectState(effect)` — Effect 기반 반응형 상태
+- `useService(tag)` — Layer에서 서비스 직접 접근
+- `useEffectCallback(fn)` — 이벤트 핸들러에서 Effect 실행
+
+**검증 기준:**
+- [ ] 기존 React 코드가 import만 변경하면 동작하는가?
+- [ ] 보일러플레이트가 실질적으로 제거되는가?
+- [ ] 테스트 작성이 용이한가?
+- [ ] SSR/Concurrent Mode에서 안전한가?
+
+### Phase 2: Enhanced Library (Path D+)
+
+**목표:** 커뮤니티 피드백 반영 + 고급 패턴 지원
+
+- Suspense 네이티브 통합 (`useRunEffect`에 `{ suspense: true }` 옵션)
+- Streaming SSR 지원 (React 18+ server components)
+- DevTools 연동 (Effect fiber 시각화)
+- `useEffectForm`, `useEffectQuery` 등 도메인 특화 hooks
+
+### Phase 3: Compiler Transform (Path C)
+
+**목표:** 선택적 Babel/SWC 플러그인으로 완벽한 수퍼셋 달성
+
+```typescript
+// 개발자가 작성 (input)
+import { useEffect } from 'effect-react'
+const user = useEffect(getUserById(userId))
+
+// 컴파일러가 변환 (output)
+import { useRunEffect } from 'effect-react/runtime'
+const user = useRunEffect(getUserById(userId))
+```
+
+**진입 조건:** Phase 1-2에서 충분한 실사용 검증 + API 안정화 후
+
+### 기술적 의사결정
+
+| 결정 | 선택 | 근거 |
+|---|---|---|
+| Hook 이름 | 새 이름 (useRunEffect 등) | `useEffect` 이름 충돌 방지. Phase 3에서 compiler로 해결 |
+| 런타임 관리 | Context + ManagedRuntime | React 트리 구조와 자연스러운 통합 |
+| 에러 표현 | `Result<A, E>` (Loading/Success/Failure) | 패턴 매칭에 최적. Suspense 옵트인은 Phase 2 |
+| React 버전 | 18+ | Concurrent features, useSyncExternalStore 필요 |
+| Effect 버전 | 3.x+ | 최신 API (ManagedRuntime, Context 등) |
