@@ -5,6 +5,8 @@ import { RunEffectDemo } from "./components/RunEffectDemo"
 import { SyncCounter } from "./components/SyncCounter"
 import { TodoApp } from "./components/TodoApp"
 import { AsyncDemo } from "./components/AsyncDemo"
+import { ReducerDemo } from "./components/ReducerDemo"
+import { MemoDemo } from "./components/MemoDemo"
 import { NestedProviderDemo } from "./components/NestedProviderDemo"
 
 export function App() {
@@ -14,7 +16,7 @@ export function App() {
         <h1>effect-react Demo</h1>
         <p style={{ color: "#666" }}>
           Demonstrating all hooks: useService, useEffectCallback, useRunEffect,
-          useEffectState, useEffectStateAsync + nested EffectProvider
+          useEffectState, useEffectStateAsync, useEffectReducer, useEffectMemo + nested EffectProvider
         </p>
         <hr />
 
@@ -44,7 +46,17 @@ export function App() {
         </section>
 
         <section style={{ marginBottom: 32 }}>
-          <h2>6. Nested EffectProvider</h2>
+          <h2>6. useEffectReducer — Sync/Async Reducer</h2>
+          <ReducerDemo />
+        </section>
+
+        <section style={{ marginBottom: 32 }}>
+          <h2>7. useEffectMemo — Memoized Effect Computation</h2>
+          <MemoDemo />
+        </section>
+
+        <section style={{ marginBottom: 32 }}>
+          <h2>8. Nested EffectProvider</h2>
           <NestedProviderDemo />
         </section>
       </div>
