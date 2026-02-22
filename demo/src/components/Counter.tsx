@@ -1,41 +1,57 @@
 /**
- * Counter — demonstrates useEffectStateAsync (useState-like pattern)
+ * Counter — demonstrates useService + useEffectCallback
  *
- * - useEffectStateAsync: initializes from Effect, setter accepts plain values or Effects
- * - No refreshKey needed — setter runs the Effect and updates state automatically
- * - Old value stays visible while Effect runs (no Loading flash)
+ * - useService: resolves CounterService from the EffectProvider's Layer
+ * - useEffectCallback: manually triggers increment/decrement Effects,
+ *   tracks result, loading state, and supports reset
  */
-import { useEffectStateAsync } from "effect-react"
+import * as React from "react"
+import { useService, useEffectCallback } from "effect-react"
 import { Effect } from "effect"
 import { CounterService } from "../services"
 
-export function Counter() {
-  const [countResult, setCount] = useEffectStateAsync(
-    Effect.flatMap(CounterService, (s) => s.get),
+const counterAction = (action: "get" | "increment" | "decrement") =>
+  Effect.flatMap(CounterService, (s) =>
+    action === "increment" ? s.increment :
+    action === "decrement" ? s.decrement :
+    s.get
   )
 
-  if (countResult._tag === "Loading") return <p>Loading counter...</p>
-  if (countResult._tag === "Failure") return <p style={{ color: "red" }}>Failed to load counter</p>
+export function Counter() {
+  const service = useService(CounterService)
+  const { run, result, isLoading, reset } = useEffectCallback(counterAction)
 
-  const handleIncrement = () => {
-    setCount(Effect.flatMap(CounterService, (s) => s.increment))
-  }
+  const serviceReady = service._tag === "Success"
+  React.useEffect(() => {
+    if (serviceReady) run("get")
+  }, [serviceReady, run])
 
-  const handleDecrement = () => {
-    setCount(Effect.flatMap(CounterService, (s) => s.decrement))
-  }
+  if (!serviceReady) return <p>Resolving CounterService...</p>
+
+  const count = result._tag === "Success" ? result.value : "..."
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <button onClick={handleDecrement} style={btnStyle}>
-        −
-      </button>
-      <span style={{ fontSize: 24, minWidth: 48, textAlign: "center" }}>
-        {countResult.value}
-      </span>
-      <button onClick={handleIncrement} style={btnStyle}>
-        +
-      </button>
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={() => run("decrement")} disabled={isLoading} style={btnStyle}>
+          −
+        </button>
+        <span data-testid="counter-value" style={{ fontSize: 24, minWidth: 48, textAlign: "center" }}>
+          {count}
+        </span>
+        <button onClick={() => run("increment")} disabled={isLoading} style={btnStyle}>
+          +
+        </button>
+        <button onClick={() => reset()} style={smallBtnStyle}>
+          Reset
+        </button>
+      </div>
+
+      <p style={{ color: "#888", fontSize: 13, marginTop: 8 }}>
+        useService resolves CounterService from the Layer.
+        <br />
+        useEffectCallback triggers operations and tracks result + loading state.
+      </p>
     </div>
   )
 }
@@ -48,4 +64,13 @@ const btnStyle: React.CSSProperties = {
   borderRadius: 6,
   border: "1px solid #ccc",
   background: "#f5f5f5",
+}
+
+const smallBtnStyle: React.CSSProperties = {
+  padding: "6px 14px",
+  fontSize: 13,
+  cursor: "pointer",
+  borderRadius: 4,
+  border: "1px solid #ccc",
+  background: "#fafafa",
 }

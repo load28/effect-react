@@ -208,6 +208,122 @@ describe("useEffectStateAsync", () => {
     expect(screen.getByTestId("result").textContent).toBe("delayed")
   })
 
+  it("isPending resets to false when plain value interrupts a running setter Effect", async () => {
+    function Test() {
+      const [result, setState, isPending] = useEffectStateAsync(Effect.succeed("initial"))
+      return (
+        <div>
+          <div data-testid="result">
+            {result._tag === "Success" ? result.value : result._tag}
+          </div>
+          <div data-testid="pending">{String(isPending)}</div>
+          <button
+            data-testid="start"
+            onClick={() =>
+              setState(Effect.delay(Effect.succeed("delayed"), "200 millis"))
+            }
+          >
+            Start
+          </button>
+          <button
+            data-testid="override"
+            onClick={() => setState("override")}
+          >
+            Override
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <EffectProvider layer={TestLayer}>
+        <Test />
+      </EffectProvider>,
+    )
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    // Start a long-running setter effect
+    fireEvent.click(screen.getByTestId("start"))
+    expect(screen.getByTestId("pending").textContent).toBe("true")
+
+    // Override with plain value while effect is still running
+    fireEvent.click(screen.getByTestId("override"))
+
+    // isPending should be false — plain value cancels pending state
+    expect(screen.getByTestId("pending").textContent).toBe("false")
+    expect(screen.getByTestId("result").textContent).toBe("override")
+  })
+
+  it("rapid successive Effect setter calls: later Effect wins, earlier is discarded", async () => {
+    function Test() {
+      const [result, setState, isPending] = useEffectStateAsync(Effect.succeed("initial"))
+      return (
+        <div>
+          <div data-testid="result">
+            {result._tag === "Success" ? result.value : result._tag}
+          </div>
+          <div data-testid="pending">{String(isPending)}</div>
+          <button
+            data-testid="slow"
+            onClick={() =>
+              setState(Effect.delay(Effect.succeed("slow-result"), "200 millis"))
+            }
+          >
+            Slow
+          </button>
+          <button
+            data-testid="fast"
+            onClick={() =>
+              setState(Effect.delay(Effect.succeed("fast-result"), "50 millis"))
+            }
+          >
+            Fast
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <EffectProvider layer={TestLayer}>
+        <Test />
+      </EffectProvider>,
+    )
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    expect(screen.getByTestId("result").textContent).toBe("initial")
+
+    // Start a slow Effect, then immediately start a fast one
+    fireEvent.click(screen.getByTestId("slow"))
+    fireEvent.click(screen.getByTestId("fast"))
+
+    // isPending should be true (fast effect is running)
+    expect(screen.getByTestId("pending").textContent).toBe("true")
+
+    // Wait for the fast effect to complete (50ms)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100))
+    })
+
+    // Fast effect should win — stale slow fiber should be discarded
+    expect(screen.getByTestId("result").textContent).toBe("fast-result")
+    expect(screen.getByTestId("pending").textContent).toBe("false")
+
+    // Wait long enough for the slow effect to have completed (if not interrupted)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 200))
+    })
+
+    // Result should still be "fast-result" — slow effect must not overwrite
+    expect(screen.getByTestId("result").textContent).toBe("fast-result")
+    expect(screen.getByTestId("pending").textContent).toBe("false")
+  })
+
   it("handles initial effect failure", async () => {
     function Test() {
       const [result] = useEffectStateAsync(Effect.fail("init-error"))

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Effect, type Context } from "effect"
+import { Effect, Exit, Cause, type Context } from "effect"
 import { useEffectRuntime } from "./useEffectRuntime.js"
 import { type EffectResult, Loading, Success, Failure } from "../types.js"
 import { createComponentStore } from "../reactive.js"
@@ -45,9 +45,10 @@ export function useService<Id, S>(
     const fiber = runtime.runFork(Effect.map(tag, (service) => service))
 
     fiber.addObserver((exit) => {
-      if (exit._tag === "Success") {
+      if (Exit.isSuccess(exit)) {
         store.set(Success(exit.value) as EffectResult<S, never>)
       } else {
+        if (Cause.isInterruptedOnly(exit.cause)) return
         store.set(Failure(exit.cause) as EffectResult<S, never>)
       }
     })

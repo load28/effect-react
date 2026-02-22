@@ -1,5 +1,5 @@
 /**
- * Smoke test — verifies the demo app renders and all hooks work correctly
+ * Smoke + integration tests — verifies the demo app renders and all hooks work correctly
  */
 import { describe, it, expect, beforeEach } from "vitest"
 import { render, screen, act, fireEvent, waitFor, cleanup } from "@testing-library/react"
@@ -19,30 +19,33 @@ describe("Demo App", () => {
       expect(screen.getByText("effect-react Demo")).toBeTruthy()
     })
 
-    expect(screen.getByText(/Counter/)).toBeTruthy()
-    expect(screen.getByText(/Todo List/)).toBeTruthy()
-    expect(screen.getByText(/Async Demo/)).toBeTruthy()
+    expect(screen.getByText("1. useService + useEffectCallback")).toBeTruthy()
+    expect(screen.getByText("2. useRunEffect")).toBeTruthy()
+    expect(screen.getByText("3. useEffectState")).toBeTruthy()
+    expect(screen.getByText("4. useEffectStateAsync — Todo List")).toBeTruthy()
+    expect(screen.getByText("5. useEffectStateAsync — Async + isPending")).toBeTruthy()
+    expect(screen.getByText("6. Nested EffectProvider")).toBeTruthy()
   })
 
-  it("Counter: useService resolves and useEffectCallback works", async () => {
-    const { container } = await act(async () => render(<App />))
-
-    // Wait for counter to render (service resolved)
-    const getCounterValue = () => {
-      const span = container.querySelector("section:first-of-type span")!
-      return Number(span.textContent)
-    }
-
-    await waitFor(() => {
-      expect(container.querySelector("section:first-of-type span")).toBeTruthy()
+  it("Counter: useService resolves and useEffectCallback increment/decrement works", async () => {
+    await act(async () => {
+      render(<App />)
     })
 
+    // Wait for counter to resolve and display a number
+    await waitFor(() => {
+      const el = screen.getByTestId("counter-value")
+      expect(el).toBeTruthy()
+      expect(Number(el.textContent)).not.toBeNaN()
+    })
+
+    const getCounterValue = () => Number(screen.getByTestId("counter-value").textContent)
     const before = getCounterValue()
 
-    // Click increment — value should go up
-    const plusBtn = screen.getByText("+")
+    // Click increment
+    const plusBtns = screen.getAllByText("+")
     await act(async () => {
-      fireEvent.click(plusBtn)
+      fireEvent.click(plusBtns[0])
     })
 
     await waitFor(() => {
@@ -51,9 +54,10 @@ describe("Demo App", () => {
 
     const afterInc = getCounterValue()
 
-    // Click decrement — value should go back down
+    // Click decrement
+    const minusBtns = screen.getAllByText("−")
     await act(async () => {
-      fireEvent.click(screen.getByText("−"))
+      fireEvent.click(minusBtns[0])
     })
 
     await waitFor(() => {
@@ -61,7 +65,53 @@ describe("Demo App", () => {
     })
   })
 
-  it("TodoApp: useRunEffect loads todos and actions work", async () => {
+  it("RunEffectDemo: useRunEffect auto-loads and re-runs on deps change", async () => {
+    await act(async () => {
+      render(<App />)
+    })
+
+    // Initially loading
+    await waitFor(() => {
+      expect(screen.getByText("Loading user...")).toBeTruthy()
+    })
+
+    // Wait for user to load (600ms delay)
+    await waitFor(
+      () => {
+        expect(screen.getByText("Alice")).toBeTruthy()
+        expect(screen.getByText("Engineer")).toBeTruthy()
+      },
+      { timeout: 2000 },
+    )
+
+    // Click User 2 — should show loading then Bob
+    await act(async () => {
+      fireEvent.click(screen.getByText("User 2"))
+    })
+
+    await waitFor(
+      () => {
+        expect(screen.getByText("Bob")).toBeTruthy()
+        expect(screen.getByText("Designer")).toBeTruthy()
+      },
+      { timeout: 2000 },
+    )
+  })
+
+  it("SyncCounter: useEffectState provides value immediately (no Loading)", async () => {
+    await act(async () => {
+      render(<App />)
+    })
+
+    // Sync counter should render immediately with 0 (no Loading state)
+    await waitFor(() => {
+      const section = screen.getByText("3. useEffectState").closest("section")!
+      const span = section.querySelector("span")!
+      expect(Number(span.textContent)).toBe(0)
+    })
+  })
+
+  it("TodoApp: useEffectStateAsync loads todos and actions work", async () => {
     await act(async () => {
       render(<App />)
     })
@@ -89,7 +139,7 @@ describe("Demo App", () => {
     )
   })
 
-  it("AsyncDemo: useEffectState loads and updates with plain values", async () => {
+  it("AsyncDemo: useEffectStateAsync loads and updates with plain values", async () => {
     await act(async () => {
       render(<App />)
     })
@@ -122,34 +172,75 @@ describe("Demo App", () => {
     })
   })
 
-  it("AsyncDemo: useEffectState re-fetches with Effect", async () => {
+  it("NestedProvider: inherits parent CounterService + adds ThemeService", async () => {
     await act(async () => {
       render(<App />)
     })
 
-    const getRandomContainer = () => screen.getByText("Random number:").closest("div")!
-
-    // Wait for initial load
+    // Wait for the nested panel to load — themed label uses both services
     await waitFor(
       () => {
-        const text = getRandomContainer().textContent || ""
-        expect(text).toMatch(/Random number:\s*\d+/)
+        const label = screen.getByTestId("themed-label")
+        expect(label.textContent).toMatch(/\[light\] Count: \d+/)
       },
       { timeout: 2000 },
     )
 
-    // Click "Fetch New" — should re-fetch
+    // Click "Show Details" to verify service info (useEffectState toggle)
     await act(async () => {
-      fireEvent.click(screen.getByText("Fetch New (Effect)"))
+      fireEvent.click(screen.getByText("Show Details"))
     })
 
-    // Eventually resolves back to a number
+    await waitFor(() => {
+      const details = screen.getByTestId("theme-details")
+      expect(details.textContent).toContain("CounterService (from parent)")
+      expect(details.textContent).toContain("ThemeService (from this provider)")
+    })
+
+    // Toggle to dark mode — swaps the nested provider's layer
+    await act(async () => {
+      fireEvent.click(screen.getByText("Dark Mode"))
+    })
+
+    // Theme should change to dark
     await waitFor(
       () => {
-        const text = getRandomContainer().textContent || ""
-        expect(text).toMatch(/Random number:\s*\d+/)
+        const label = screen.getByTestId("themed-label")
+        expect(label.textContent).toMatch(/\[dark\] Count: \d+/)
       },
-      { timeout: 3000 },
+      { timeout: 2000 },
+    )
+  })
+
+  it("NestedProvider: parent and child scopes show different themes simultaneously", async () => {
+    await act(async () => {
+      render(<App />)
+    })
+
+    // Wait for both theme labels to load
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("parent-theme").textContent).toContain("light")
+        expect(screen.getByTestId("nested-theme").textContent).toContain("light")
+      },
+      { timeout: 2000 },
+    )
+
+    // Both start as "light" — parent from AppLayer, nested from LightThemeLayer default
+
+    // Toggle to dark mode — only the nested scope changes
+    await act(async () => {
+      fireEvent.click(screen.getByText("Dark Mode"))
+    })
+
+    await waitFor(
+      () => {
+        // Parent scope: still "light" (from AppLayer, unaffected)
+        expect(screen.getByTestId("parent-theme").textContent).toContain("light")
+        // Nested scope: now "dark" (overridden by DarkThemeLayer)
+        expect(screen.getByTestId("nested-theme").textContent).toContain("dark")
+      },
+      { timeout: 2000 },
     )
   })
 })

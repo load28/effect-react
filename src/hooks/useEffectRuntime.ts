@@ -7,12 +7,12 @@ import { EffectRuntimeContext } from "../context.js"
  * Throws if used outside of an EffectProvider.
  */
 export function useEffectRuntime<R = any, E = any>(): ManagedRuntime.ManagedRuntime<R, E> {
-  const runtime = React.useContext(EffectRuntimeContext)
-  if (runtime === null) {
+  const ctx = React.useContext(EffectRuntimeContext)
+  if (ctx === null) {
     throw new Error(
       "useEffectRuntime: No EffectProvider found in component tree. " +
       "Wrap your component with <EffectProvider layer={...}>.",
     )
   }
-  return runtime as ManagedRuntime.ManagedRuntime<R, E>
+  return ctx as ManagedRuntime.ManagedRuntime<R, E>
 }

@@ -79,7 +79,7 @@ export function useRunEffect<A, E, R>(
       fiber.unsafeInterruptAsFork(fiber.id())
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps ?? [])
+  }, deps ? [runtime, ...deps] : [runtime])
 
   return result
 }

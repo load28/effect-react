@@ -89,6 +89,8 @@ export function useEffectCallback<A, E, R, Args extends ReadonlyArray<unknown>>(
       fiberRef.current = fiber
 
       fiber.addObserver((exit) => {
+        // Ignore if a newer fiber has replaced this one
+        if (fiberRef.current !== fiber) return
         fiberRef.current = null
         if (Exit.isSuccess(exit)) {
           store.set(Success(exit.value) as EffectResult<A, E>)

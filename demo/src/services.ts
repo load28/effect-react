@@ -80,6 +80,34 @@ const makeCounterService = Effect.sync(() => {
 
 export const CounterServiceLive = Layer.effect(CounterService, makeCounterService)
 
+// --- Theme Service (for nested provider demo) ---
+
+export class ThemeService extends Context.Tag("ThemeService")<
+  ThemeService,
+  {
+    readonly current: Effect.Effect<string>
+    readonly colors: Effect.Effect<{ bg: string; fg: string; accent: string }>
+  }
+>() {}
+
+const makeThemeService = (themeName: string, colors: { bg: string; fg: string; accent: string }) =>
+  Layer.succeed(ThemeService, ThemeService.of({
+    current: Effect.succeed(themeName),
+    colors: Effect.succeed(colors),
+  }))
+
+export const LightThemeLayer = makeThemeService("light", {
+  bg: "#ffffff",
+  fg: "#1a1a1a",
+  accent: "#0070f3",
+})
+
+export const DarkThemeLayer = makeThemeService("dark", {
+  bg: "#1a1a2e",
+  fg: "#e0e0e0",
+  accent: "#64ffda",
+})
+
 // --- App Layer (combines all services) ---
 
-export const AppLayer = Layer.mergeAll(TodoServiceLive, CounterServiceLive)
+export const AppLayer = Layer.mergeAll(TodoServiceLive, CounterServiceLive, LightThemeLayer)

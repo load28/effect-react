@@ -98,6 +98,59 @@ describe("useEffectCallback", () => {
     expect(screen.getByTestId("result").textContent).toBe("oops")
   })
 
+  it("rapid successive runs: later run wins, earlier is discarded", async () => {
+    function Test() {
+      const { run, result, isLoading } = useEffectCallback(
+        (label: string, delay: number) =>
+          Effect.delay(Effect.succeed(label), `${delay} millis`),
+      )
+      return (
+        <div>
+          <button data-testid="slow" onClick={() => run("slow-result", 200)}>
+            Slow
+          </button>
+          <button data-testid="fast" onClick={() => run("fast-result", 50)}>
+            Fast
+          </button>
+          <span data-testid="result">
+            {result._tag === "Success" ? String(result.value) : result._tag}
+          </span>
+          <span data-testid="loading">{String(isLoading)}</span>
+        </div>
+      )
+    }
+
+    render(
+      <EffectProvider layer={TestLayer}>
+        <Test />
+      </EffectProvider>,
+    )
+
+    // Start a slow effect, then immediately start a fast one
+    fireEvent.click(screen.getByTestId("slow"))
+    fireEvent.click(screen.getByTestId("fast"))
+
+    expect(screen.getByTestId("loading").textContent).toBe("true")
+
+    // Wait for the fast effect to complete
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100))
+    })
+
+    // Fast effect should win
+    expect(screen.getByTestId("result").textContent).toBe("fast-result")
+    expect(screen.getByTestId("loading").textContent).toBe("false")
+
+    // Wait for slow effect to have completed (if not interrupted)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 200))
+    })
+
+    // Result should still be "fast-result" — stale slow fiber must not overwrite
+    expect(screen.getByTestId("result").textContent).toBe("fast-result")
+    expect(screen.getByTestId("loading").textContent).toBe("false")
+  })
+
   it("resets state", async () => {
     function Test() {
       const { run, result, reset } = useEffectCallback(

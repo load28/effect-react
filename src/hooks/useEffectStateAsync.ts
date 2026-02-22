@@ -82,11 +82,12 @@ export function useEffectStateAsync<A, E, R>(
     const fiber = runtime.runFork(initialEffectRef.current)
 
     fiber.addObserver((exit) => {
-      pendingStore.set(false)
       if (Exit.isSuccess(exit)) {
+        pendingStore.set(false)
         store.set(Success(exit.value) as EffectResult<A, E>)
       } else {
         if (Cause.isInterruptedOnly(exit.cause)) return
+        pendingStore.set(false)
         const failure = Cause.failureOption(exit.cause)
         if (failure._tag === "Some") {
           store.set(Failure(failure.value) as EffectResult<A, E>)
@@ -116,12 +117,15 @@ export function useEffectStateAsync<A, E, R>(
         const fiber = runtime.runFork(next)
         fiberRef.current = fiber
         fiber.addObserver((exit) => {
+          // Ignore if a newer fiber has replaced this one
+          if (fiberRef.current !== fiber) return
           fiberRef.current = null
-          pendingStore.set(false)
           if (Exit.isSuccess(exit)) {
+            pendingStore.set(false)
             store.set(Success(exit.value) as EffectResult<A, E>)
           } else {
             if (Cause.isInterruptedOnly(exit.cause)) return
+            pendingStore.set(false)
             const failure = Cause.failureOption(exit.cause)
             if (failure._tag === "Some") {
               store.set(Failure(failure.value) as EffectResult<A, E>)
@@ -130,6 +134,7 @@ export function useEffectStateAsync<A, E, R>(
         })
       } else {
         // Plain value — instant update, exactly like useState
+        pendingStore.set(false)
         store.set(Success(next) as EffectResult<A, E>)
       }
     },
