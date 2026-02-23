@@ -6,4 +6,6 @@ export {
   useEffectCallback,
   type UseEffectCallbackReturn,
 } from "./useEffectCallback.js"
+export { useEffectReducer } from "./useEffectReducer.js"
+export { useEffectMemo } from "./useEffectMemo.js"
 export { useEffectRuntime } from "./useEffectRuntime.js"

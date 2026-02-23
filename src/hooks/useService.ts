@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Effect, Exit, Cause, type Context } from "effect"
+import { Exit, Cause, type Context } from "effect"
 import { useEffectRuntime } from "./useEffectRuntime.js"
 import { type EffectResult, Loading, Success, Failure } from "../types.js"
 import { createComponentStore } from "../reactive.js"
@@ -42,7 +42,8 @@ export function useService<Id, S>(
   const result = React.useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
   React.useEffect(() => {
-    const fiber = runtime.runFork(Effect.map(tag, (service) => service))
+    // Context.Tag implements Effect — run it directly without wrapping.
+    const fiber = runtime.runFork(tag as any)
 
     fiber.addObserver((exit) => {
       if (Exit.isSuccess(exit)) {

@@ -94,5 +94,7 @@ export {
   useService,
   useEffectCallback,
   type UseEffectCallbackReturn,
+  useEffectReducer,
+  useEffectMemo,
   useEffectRuntime,
 } from "./hooks/index.js"

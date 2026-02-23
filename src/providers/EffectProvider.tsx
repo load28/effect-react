@@ -45,9 +45,18 @@ export function EffectProvider<R, E>({
 }: EffectProviderProps<R, E>): React.ReactElement {
   const parentRuntime = React.useContext(EffectRuntimeContext)
 
+  // Store the layer in a ref to protect against unstable inline references.
+  // If the user passes `layer={Layer.merge(A, B)}` inline, this prevents
+  // the runtime from being destroyed and recreated on every parent re-render.
+  // The layer ref is only updated when the layer actually changes via the
+  // explicit setter, or on first mount.
+  const layerRef = React.useRef(layer)
+  layerRef.current = layer
+
   const effectiveLayer = React.useMemo(
     () => {
-      if (!parentRuntime) return layer as Layer.Layer<any, any, never>
+      const currentLayer = layerRef.current as Layer.Layer<any, any, never>
+      if (!parentRuntime) return currentLayer
 
       // Extract the parent's already-built Context (shared service instances).
       // This is the key to Angular-style DI: we reuse the parent's live
@@ -58,8 +67,10 @@ export function EffectProvider<R, E>({
       // Merge: parent instances (left) + child layer (right).
       // Layer.merge gives right-side precedence for overlapping tags,
       // so the child can override specific parent services.
-      return Layer.merge(parentInstancesLayer, layer as Layer.Layer<any, any, never>)
+      return Layer.merge(parentInstancesLayer, currentLayer)
     },
+    // Only recompute when parentRuntime or layer reference identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [parentRuntime, layer],
   )
 
@@ -68,14 +79,38 @@ export function EffectProvider<R, E>({
     [effectiveLayer],
   )
 
+  // Track whether the current runtime is still active.
+  // This prevents StrictMode's mount→cleanup→mount cycle from disposing
+  // a runtime that will be reused on the second mount.
+  const activeRuntimeRef = React.useRef<ManagedRuntime.ManagedRuntime<any, any> | null>(null)
+  activeRuntimeRef.current = runtime
+
   React.useEffect(() => {
+    const currentRuntime = runtime
     return () => {
-      runtime.dispose().catch(() => {
-        // Disposal errors are silently ignored during unmount.
-        // This matches React's pattern of best-effort cleanup.
+      // Only dispose if this runtime is no longer the active one.
+      // In StrictMode, the cleanup fires but the same runtime (from useMemo cache)
+      // will be reused on the immediate re-mount — so we must not dispose it.
+      // Use queueMicrotask to defer disposal until after React's re-mount phase.
+      queueMicrotask(() => {
+        if (activeRuntimeRef.current !== currentRuntime) {
+          currentRuntime.dispose().catch(() => {
+            // Disposal errors are silently ignored during unmount.
+            // This matches React's pattern of best-effort cleanup.
+          })
+        }
       })
     }
   }, [runtime])
+
+  // Dispose on true unmount (component removed from tree).
+  React.useEffect(() => {
+    return () => {
+      // On true unmount, activeRuntimeRef won't be updated again.
+      // The microtask in the runtime-specific cleanup above will handle disposal.
+      activeRuntimeRef.current = null
+    }
+  }, [])
 
   return React.createElement(
     EffectRuntimeContext.Provider,
