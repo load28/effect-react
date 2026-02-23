@@ -65,6 +65,11 @@ export function useEffectCallback<A, E, R, Args extends ReadonlyArray<unknown>>(
 
   const fiberRef = React.useRef<Fiber.RuntimeFiber<A, E> | null>(null)
 
+  // Store fn in a ref so `run` doesn't need fn in its deps.
+  // This keeps `run` referentially stable across renders even when fn is inline.
+  const fnRef = React.useRef(fn)
+  fnRef.current = fn
+
   // Cleanup on unmount
   React.useEffect(() => {
     return () => {
@@ -84,7 +89,7 @@ export function useEffectCallback<A, E, R, Args extends ReadonlyArray<unknown>>(
 
       store.set(Loading as EffectResult<A, E>)
 
-      const effect = fn(...args)
+      const effect = fnRef.current(...args)
       const fiber = runtime.runFork(effect)
       fiberRef.current = fiber
 
@@ -105,7 +110,7 @@ export function useEffectCallback<A, E, R, Args extends ReadonlyArray<unknown>>(
         }
       })
     },
-    [runtime, fn, store],
+    [runtime, store],
   )
 
   const reset = React.useCallback(() => {
@@ -120,5 +125,8 @@ export function useEffectCallback<A, E, R, Args extends ReadonlyArray<unknown>>(
   const result: EffectResult<A, E> =
     state._tag === "Initial" ? (Loading as EffectResult<A, E>) : state
 
-  return { run, result, isLoading, reset }
+  return React.useMemo(
+    () => ({ run, result, isLoading, reset }),
+    [run, result, isLoading, reset],
+  )
 }

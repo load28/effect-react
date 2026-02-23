@@ -42,6 +42,9 @@ export function createComponentStore<T>(initialValue: T): ComponentStore<T> {
     },
 
     set(value: T) {
+      // Skip if the value is the same reference — avoids unnecessary
+      // re-renders when the same EffectResult or primitive is set again.
+      if (Object.is(currentValue, value)) return
       currentValue = value
       // Publish to all subscribers (PubSub.publish equivalent)
       for (const listener of listeners) {

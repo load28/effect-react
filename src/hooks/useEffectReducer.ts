@@ -80,6 +80,11 @@ export function useEffectReducer<S, A, E, R>(
 
   const fiberRef = React.useRef<Fiber.RuntimeFiber<S, E> | null>(null)
 
+  // Store reducer in a ref so dispatch stays referentially stable
+  // even when the reducer is defined inline.
+  const reducerRef = React.useRef(reducer)
+  reducerRef.current = reducer
+
   // Cleanup on unmount
   React.useEffect(() => {
     return () => {
@@ -93,7 +98,7 @@ export function useEffectReducer<S, A, E, R>(
   const dispatch = React.useCallback(
     (action: A) => {
       const currentState = store.getSnapshot()
-      const result = reducer(currentState, action)
+      const result = reducerRef.current(currentState, action)
 
       if (isEffect(result)) {
         // Interrupt previous Effect if still running
@@ -130,7 +135,7 @@ export function useEffectReducer<S, A, E, R>(
         store.set(result)
       }
     },
-    [runtime, reducer, store, pendingStore],
+    [runtime, store, pendingStore],
   )
 
   return [state, dispatch, isPending]
